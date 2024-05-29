@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - data: mouse1
+  - model: base
+  - optimization: base
+
+checkpoint_dir: /home/ajl/work/d1/model-checkpoints/celltransformer-mouse1-encdec
+wandb_project: 'enc-dec-celltransformer'
+model_checkpoint: None

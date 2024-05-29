@@ -1,0 +1,57 @@
+[build-system]
+requires = [
+  "setuptools >= 64",
+  "wheel",
+  "setuptools_scm[toml]>=8",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "brainform/_version.py"
+
+[tool.black]
+target-version = ['py38', 'py39', 'py310']
+skip-string-normalization = true
+line-length = 79
+exclude = '''
+(
+  /(
+      \.eggs
+    | \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | build
+    | dist
+  )
+)
+'''
+
+
+[project]
+name = "brainformr"
+authors = [{name = "Alex Lee", email = "alex.lee@ucsf.edu"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version"]
+dependencies = [ 
+  "pytest",
+  "numpy",
+  "scikit-learn",
+	"omegaconf",
+	"wandb",
+	"hydra-core",
+	"pandas",
+	"tqdm",
+	"pandas",
+	"anndata",  
+  "jaxtyping",
+  "scvi-tools"
+]
+
+[project.urls]
+Home = "https//github.com//eelxela/brainform"
+

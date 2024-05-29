@@ -1,0 +1,12 @@
+lr: 1e-3
+wd: 5e-8
+
+schedule_warmup: 500
+schedule_timescale: 200
+schedule_plateau: 50
+
+accumulation_steps: 8
+
+epochs: 15
+
+precision: "bf16-mixed"

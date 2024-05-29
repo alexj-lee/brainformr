@@ -1,0 +1,12 @@
+_target_: brainform.model.cell_transformer_nb_encdec.CellLocationTransformer
+encoder_embedding_dim: 768
+decoder_embedding_dim: 768
+
+encoder_num_heads: 8
+decoder_num_heads: 8
+
+encoder_depth: 8
+decoder_depth: 4
+
+cell_cardinality: 5174
+eps: 1e-8

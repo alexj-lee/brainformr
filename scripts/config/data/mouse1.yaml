@@ -1,0 +1,12 @@
+adata_path: "/home/ajl/work/n1/C57BL6J-638850-log2_dense.h5ad"
+metadata_path: "/home/ajl/work/n1/data/mouse1/celltypes/metadata-joined-ccf.csv"
+batch_size: 84
+num_workers: 6
+patch_size: 
+  - 14
+  - 14
+  - 1
+label_id: "subclass"
+neighborhood_max_num_cells: 250
+collate_fn: brainform.cell_loader.collate
+train_pct: 0.8
