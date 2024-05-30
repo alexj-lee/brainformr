@@ -11,5 +11,5 @@ This is documentation for code written as part of the manuscript ["Data-driven f
 ## Usage
 See the [usage](usage.md) page for more details and a specific example of how to train on the Allen Institute for Brain Science mouse.
 
-::: brainformr.loader_pandas
+::: brainformr.data.loader_pandas
 
