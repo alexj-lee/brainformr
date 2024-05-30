@@ -5,7 +5,15 @@ from torch import nn
 
 
 class ZINBProj(nn.Module):
+    """zinbproj
+
+    Parameters
+    ----------
+    nn : _type_
+        _description_
+    """
     def __init__(self, embed_dim: int, n_genes: int, eps: float):
+        super().__init__()
         self.mu = nn.Linear(embed_dim, n_genes)  # mean
         self.theta = nn.Linear(
             embed_dim, n_genes

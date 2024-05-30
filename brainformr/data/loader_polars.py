@@ -10,6 +10,15 @@ import polars as pl
 import torch
 from jaxtyping import Float, Int
 
+"""
+For some reason I couldn't make polars faster than pandas; as it stands there is a 
+substantial speedup from pandas -- in addition, it appears that the multiprocessing 
+that polars does interferes somehow with the torch DataLoader. 
+
+I left this in as a reference in case others have helpful ideas on how to speed up the
+polars implementation.
+"""
+
 NeighborhoodMetadata = namedtuple(
     "NeighborhoodMetadata",
     (  
@@ -225,7 +234,7 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         return self.neighborhood_gather(all_neighborhood_cells, index)
 
     def neighborhood_gather(
-        self, neighborhood_cells: pl.DataFrame, ref_cell_label: str
+        self, neighborhood_cells: pl.DataFrame, ref_cell_label: str, as_dict: Optional[bool] = False
     ):
         neighborhood_cells_indices = neighborhood_cells[self.cell_type_colname]
         #expression = self.adata[neighborhood_cells_indices].X
@@ -257,17 +266,19 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         )
 
         num_cells_obs = len(observed_cells)
-        # return dict(
-        #     observed_expression=observed_expression,
-        #     masked_expression=masked_expression,
-        #     observed_cell_type=observed_cell_types,
-        #     masked_cell_type=masked_cell_types,
-        # )
 
-        return NeighborhoodMetadata(
-            torch.from_numpy(observed_expression),
-            torch.from_numpy(masked_expression),
-            torch.from_numpy(observed_cell_types).long(),
-            torch.from_numpy(masked_cell_types).long(),
-            num_cells_obs,
-        )#, ref_cell_label, neighborhood_cells
+        if as_dict:
+            return dict(
+                observed_expression=observed_expression,
+                masked_expression=masked_expression,
+                observed_cell_type=observed_cell_types,
+                masked_cell_type=masked_cell_types,
+            )
+        else:
+            return NeighborhoodMetadata(
+                torch.from_numpy(observed_expression),
+                torch.from_numpy(masked_expression),
+                torch.from_numpy(observed_cell_types).long(),
+                torch.from_numpy(masked_cell_types).long(),
+                num_cells_obs,
+            )

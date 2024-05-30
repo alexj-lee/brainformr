@@ -14,47 +14,53 @@ def test_xformer_factory_pytorch():
     zero_attn = True
 
     for bias in (True, False):
-        layers = model.set_up_transformer_layers(
+        xformer_blocks = model.set_up_transformer_layers(
             embed_dim, num_heads, depth, dropout, bias, zero_attn
         )
         assert isinstance(
-            layers, nn.TransformerEncoder
+            xformer_blocks, nn.TransformerEncoder
         ), "`layers` not type(obj) == nn.TransformerEncoder"
 
-        for layer in layers.layers:
-            assert hasattr(
-                layer.get_submodule('self_attn.out_proj'), "bias"
-            ) is bias, f"bias={bias} in argument however bias={not bias} in layer"
+        for layer in xformer_blocks.layers: 
+            # bias_k / bias_q are set to None in constructor regardless of
+            # whether bias=True to nn.MultiHeadedAttention
+            assert (layer.get_submodule('self_attn').bias_k is None) is not bias, f"bias={bias} in argument however bias={not bias} in layer"
 
 
     # check if the KH Normal layer initialization for the attn layers works
     # see fn definition for `set_up_transformer_layers` for details and why this is necessary
     assert (
         torch.allclose(
-            layer.layers[0].self_attn.out_proj.weight,
-            layer.layers[1].self_attn.out_proj.weight,
+            xformer_blocks.layers[0].self_attn.out_proj.weight,
+            xformer_blocks.layers[1].self_attn.out_proj.weight,
         )
         is False
     ), "Weights are equal for blocks 0 and 1"
     assert (
         torch.allclose(
-            layer.layers[0].self_attn.out_proj.weight,
-            layer.layers[2].self_attn.out_proj.weight,
+            xformer_blocks.layers[0].self_attn.out_proj.weight,
+            xformer_blocks.layers[2].self_attn.out_proj.weight,
         )
         is False
     ), "Weights are equal for blocks 0 and 2"
     assert (
         torch.allclose(
-            layer.layers[1].self_attn.out_proj.weight,
-            layer.layers[2].self_attn.out_proj.weight,
+            xformer_blocks.layers[1].self_attn.out_proj.weight,
+            xformer_blocks.layers[2].self_attn.out_proj.weight,
         )
         is False
     ), "Weights are equal for blocks 0 and 1"
 
     random_data = torch.randn(5, 64)
-    output = layers(random_data)
+    output = xformer_blocks(random_data)
+    loss = output.sum()
+    loss.backward()
+
     assert output.shape == (5, 64), "Output shape is not (5, 64)"
     assert torch.allclose(output, random_data) is False, "Output is not equal to input"
+    assert (wt.grad is not None for _, wt in xformer_blocks.named_parameters()), "Gradients are not None after test fwd pass"
+
+
 
 def test_zinb_proj():
     embed_dim = 64

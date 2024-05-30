@@ -79,3 +79,6 @@ deps/deps.jl
 !/.pre-commit-config.yaml
 !.npmignore
 !/.scrutinizer.yml
+
+site
+

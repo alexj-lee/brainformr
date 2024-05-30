@@ -12,22 +12,43 @@ from jaxtyping import Float, Int
 NeighborhoodMetadata = namedtuple(
     "NeighborhoodMetadata",
     (
-        "observed_expression",
-        "masked_expression",
-        "observed_cell_type",
-        "masked_cell_type",
-        "num_cells_obs",
+        "observed_expression", # as float matrix, n_neighbor x g
+        "masked_expression", # as float matrix, n_masked (ex 1) x g
+        "observed_cell_type", # int vector of length n_neighbor
+        "masked_cell_type", # in vector of n_masked length
+        "num_cells_obs", # number of observed cells (cells in neighborhd)
     ),
 )
 
-
-def random_indices_from_series(df: pd.Series, n: int) -> List[int]:
+def random_indices_from_series(df: Union[pd.Series, pd.DataFrame], n: int) -> List[int]:
+    # randomly sample n indices from length of df/series
     indices = list(range(len(df)))
     shuffle(indices)
     return indices[:n]
 
 
 def index_outer_product(n: int) -> Int[np.ndarray, "seqlen 2"]:  # noqa: F722
+    """Compute the product of the set of indices with itself. In other words,
+    return all pairs of indices from the set (0, 1, ..., n).
+
+    Returns
+    -------
+    array of int
+        (n_indices, 2) np array.
+
+    Examples
+    --------
+    >>> print(index_outer_product(3))
+    array([[0, 0],
+        [1, 0],
+        [2, 0],
+        [0, 1],
+        [1, 1],
+        [2, 1],
+        [0, 2],
+        [1, 2],
+        [2, 2]])
+    """
     i = np.arange(n)
     grid = np.dstack(np.meshgrid(i, i)).reshape(-1, 2)
     return grid
@@ -48,6 +69,7 @@ def collate(batched_metadata: NeighborhoodMetadata):
     )
 
     decoder_mask = torch.ones(bs * 2, bs * 2, dtype=torch.bool)
+    pooling_mask = torch.ones(bs, bs + tot_num_obs_cells)
 
     offset = 0
 
@@ -86,6 +108,8 @@ def collate(batched_metadata: NeighborhoodMetadata):
         attn_mask[pooling_indices, decoding_indices] = False
         attn_mask[decoding_indices, pooling_indices] = False
 
+        pooling_mask[i, offset : offset + num_hidden_cells] = False
+
         decoder_mask[i, bs + i] = False
         decoder_mask[bs + i, i] = False
 
@@ -97,8 +121,8 @@ def collate(batched_metadata: NeighborhoodMetadata):
         masked_cell_type.append(metadata.masked_cell_type)
         observed_neighboorhood_lens.append(metadata.num_cells_obs)
 
-    observed_expression = torch.cat(observed_expression)
-    masked_expression = torch.cat(masked_expression)
+    observed_expression = torch.cat(observed_expression).float()
+    masked_expression = torch.cat(masked_expression).float()
     observed_cell_type = torch.cat(observed_cell_type).long()
     masked_cell_type = torch.cat(masked_cell_type).long()
 
@@ -111,6 +135,7 @@ def collate(batched_metadata: NeighborhoodMetadata):
         masked_cell_type=masked_cell_type,
         observed_neighboorhood_lens=observed_neighboorhood_lens,
         full_mask=attn_mask,
+        pooling_mask=pooling_mask,
         encoder_mask=attn_mask[:num_cells_plus_cls, :num_cells_plus_cls],
         decoder_mask=decoder_mask,
         bs=bs,
@@ -127,6 +152,7 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         cell_type_colname: Optional[str] = "cell_type",
         tissue_section_colname: Optional[str] = "brain_section_label",
         max_num_cells: Optional[Union[int, None]] = None,
+        indices: Optional[Union[List[int], None]] = None,
     ):
         """_summary_
 
@@ -146,6 +172,8 @@ class CenterMaskSampler(torch.utils.data.Dataset):
             _description_, by default "brain_section_label"
         max_num_cells : Optional[Union[int, None]], optional
             _description_, by default None
+        indices: Optional[Union[List[int], None]], optional
+            _description, by default None
 
         Raises
         ------
@@ -198,10 +226,11 @@ class CenterMaskSampler(torch.utils.data.Dataset):
 
         self.metadata = metadata
 
+        # use these later to index into metadata dataframe
         self.cell_type_colname = cell_type_colname
         self.cell_id_colname = cell_id_colname
         self.tissue_section_colname = tissue_section_colname
-        self.length = len(self.metadata)
+        self.length = len(self.metadata) if indices is None else len(indices)
         self.max_num_cells = np.inf if max_num_cells is None else max_num_cells
 
         self.adata = adata
@@ -209,10 +238,15 @@ class CenterMaskSampler(torch.utils.data.Dataset):
 
         self._preprocess_metadata()
 
+        # so that later we can simply pass a train/valid/test set of indices 
+        # instead of filtering up front
+        self.indices = indices if indices is not None else range(self.length)
+
     def __len__(self):
         return self.length
 
     def _preprocess_metadata(self):
+        # for use in reducing complexity of neighborhood queries in getitem 
         self.tissue_section_mapper = {
             section_label: subset_df
             for section_label, subset_df in self.metadata.groupby(
@@ -227,6 +261,27 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         tissue_section: pd.DataFrame,
         discretize: bool = False,
     ) -> pd.DataFrame:
+        """Return the cells from tissue_section that are within 
+        patch_size distance away from centroid.
+
+        Parameters
+        ----------
+        centroid : npt.ArrayLike
+            A 1x2 vector representing the centroid of the patch.
+        patch_size : npt.ArrayLike
+            A 1x2 vector representing the size of the patch.
+        tissue_section : pd.DataFrame
+            A pandas DataFrame containing the cells in the tissue section.
+            It's assumed that the cell corresponding to centroid is in this dataframe.
+        discretize : bool, optional
+            _description_, by default False
+
+        Returns
+        -------
+        pd.DataFrame
+            Cells inside the neighborhood, inclusive of the 
+            centroid cell / reference cell.
+        """
         start = centroid - (patch_size / 2)
         if discretize:
             start = np.rint(start).astype(int)
@@ -242,7 +297,8 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         return self.adata[indices].X
 
     def __getitem__(self, index) -> dict:
-        metadata_row = self.metadata.iloc[index]
+        orig_idx = self.indices[index] # see init for expln
+        metadata_row = self.metadata.iloc[orig_idx]
         index = metadata_row[self.cell_id_colname]
 
         centroid = np.array([metadata_row["x"], metadata_row["y"]])
@@ -256,10 +312,11 @@ class CenterMaskSampler(torch.utils.data.Dataset):
             )
 
         all_neighborhood_cells = self.get_nearby_cells(
-            centroid, self.patch_size, tissue_section, discretize=True
+            centroid, self.patch_size, tissue_section, discretize=False
         )
 
         if len(all_neighborhood_cells) == 1:
+            # manually create an empty neighborhood
             masked_expression: Float[np.array, "one n_genes"] = self.idx_to_expr(index)  # noqa: F722
             masked_cell_type: int = metadata_row[self.cell_type_colname]
 
@@ -278,8 +335,32 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         self,
         neighborhood_cells: pd.DataFrame,
         ref_cell_label: str,
-        as_dict: bool = False,
+        as_dict: Optional[bool] = False,
     ):
+        """Get the neighborhood cells' metadata and partition them into two sets.
+        In this case we will only predict the center / reference cell.
+
+        Parameters
+        ----------
+        neighborhood_cells : pd.DataFrame
+            Dataframe containing the cells in the neighborhood. One 
+            cell's metadata per row.
+        ref_cell_label : str
+            The label of the reference cell as a string.
+        as_dict : Optional[bool], optional
+            Return a dictionary (True) or NeighborhoodMetadata (False), 
+            by default False.
+
+        Returns
+        -------
+        Union[NeighborhoodMetadata, dict]
+            A namedtuple or dictionary containing the partitioned cells'
+            metadata, meaning the expression and class label integer for
+            each of the cells. The number of observed cells is also returned,
+            so in total there will be five entries / keys.
+
+        """
+
         neighborhood_cells = neighborhood_cells.reset_index(drop=True)
         neighborhood_cells_indices = neighborhood_cells[self.cell_id_colname]
         expression = self.adata[neighborhood_cells_indices].X
