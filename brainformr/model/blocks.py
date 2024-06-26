@@ -1,17 +1,11 @@
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
+from jaxtyping import Float
 from torch import nn
 
 
 class ZINBProj(nn.Module):
-    """zinbproj
-
-    Parameters
-    ----------
-    nn : _type_
-        _description_
-    """
     def __init__(self, embed_dim: int, n_genes: int, eps: float):
         super().__init__()
         self.mu = nn.Linear(embed_dim, n_genes)  # mean
@@ -27,13 +21,12 @@ class ZINBProj(nn.Module):
 
         self.eps = eps
 
-    def forward(self, x):
+    def forward(self, x) -> Dict[str, Float[torch.Tensor, "n_cells n_genes"]]:
         mu = self.mu(x).exp() + self.eps
         theta = self.theta(x).exp() + self.eps
         gate = self.gate_logit(x) 
         scale = self.scale(x).exp() + self.eps
-        return dict(mu=mu, theta=theta, gate=gate, scale=scale)
-        #return ZeroInflatedNegativeBinomial(mu=mu, theta=theta, zi_logits=gate, scale=scale)
+        return dict(mu=mu, theta=theta, zi_logits=gate, scale=scale)
     
 class AttnPool(nn.Module):
     def __init__(
@@ -61,6 +54,7 @@ class AttnPool(nn.Module):
         self.norm_k = norm(embed_dim)
         self.norm2 = norm(embed_dim)
         self.query_token = nn.Parameter(torch.zeros(1, embed_dim))
+        nn.init.normal_(self.query_token, std=0.02)
 
         self.dropout_sa = nn.Dropout(dropout)
 

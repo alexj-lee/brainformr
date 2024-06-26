@@ -10,6 +10,7 @@ import wandb
 from lightning_model import BaseTrainer, get_timestamp
 from omegaconf import DictConfig, OmegaConf
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
 from torch import nn
 
 from brainformr.data import CenterMaskSampler, collate
@@ -17,76 +18,53 @@ from brainformr.data import CenterMaskSampler, collate
 # from brainformr import __version__ as brainformr_version
 brainformr_version = "1.0"
 
+class ZhuangTrainer(BaseTrainer):
+    def label_to_cls(self, labels_str: pd.Series):
+        le = LabelEncoder()
+        le.fit(sorted(labels_str.unique()))
+        return le.transform(labels_str)
 
-class AIBSTrainer(BaseTrainer):
-    # def on_before_optimizer_step(self, optimizer) -> None:
-    #     norms = L.pytorch.utilities.grad_norm(self.model, norm_type=2)
-    #     self.log_dict(norms)
+    def load_data(self, config: DictConfig):
 
-    def load_data(self, config: DictConfig, inference: bool = False):
-        adata = ad.read_h5ad(config.data.adata_path)
-        # filter control probes
-        adata[:, ~adata.var.gene_symbol.str.contains("Blank")] 
+        all_dfs = []
+        all_cls = set()
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", pd.errors.DtypeWarning)
-            metadata = pd.read_csv(config.data.metadata_path)
+        for df_path in config.data.metadata_path:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", pd.errors.DtypeWarning)
+                metadata = pd.read_csv(df_path)
+                
+            metadata["x"] = metadata["x"] * 100
+            metadata["y"] = metadata["y"] * 100
 
-        metadata["cell_label"] = metadata["cell_label"].astype(str)
-        metadata["x"] = metadata["x_reconstructed"] * 100
-        metadata["y"] = metadata["y_reconstructed"] * 100
+            metadata = metadata.reset_index(drop=True)
 
-        metadata = metadata[
-            [
-                config.data.celltype_colname,
-                "cell_label",
-                "x",
-                "y",
-                "brain_section_label",
-            ]
-        ]
+            all_cls.update(metadata[config.data.celltype_colname].unique())
+            all_dfs.append(metadata)
 
-        metadata["cell_type"] = self.label_to_cls(
-            metadata[config.data.celltype_colname]
-        )
-        metadata["cell_type"] = metadata["cell_type"].astype(int)
+        le = LabelEncoder()
+        le.fit(sorted(all_cls))
 
-        metadata = metadata.reset_index(drop=True)
+        trn_samplers = []
+        valid_samplers = []
 
-        # filter for MERFISH cells that were clf'd
-        adata = adata[metadata["cell_label"]]
+        for df, anndata_path in zip(all_dfs, config.data.adata_path):
+            df["cell_type"] = le.transform(df[config.data.celltype_colname])
+            df["cell_type"] = df["cell_type"].astype(int)
 
-        if inference:
-            sampler = CenterMaskSampler(
-                metadata=metadata,
-                adata=adata,
-                patch_size=config.data.patch_size,
-                cell_id_colname=config.data.cell_id_colname,
-                cell_type_colname="cell_type",
-                tissue_section_colname=config.data.tissue_section_colname,
-                max_num_cells=config.data.neighborhood_max_num_cells,
-            )
+            df['cell_label'] = df['cell_label'].astype(str)
 
-            loader = torch.utils.data.DataLoader(
-                sampler,
-                batch_size=config.data.batch_size,
-                shuffle=True,
-                num_workers=config.data.num_workers,
-                pin_memory=True,
-                collate_fn=collate,
-                prefetch_factor=4,
-            )
+            df = df[['cell_type', 'cell_label', 'x', 'y', 'brain_section_label']]
 
-            return loader
+            adata = ad.read_h5ad(anndata_path)
+            adata = adata[df["cell_label"]]
 
-
-        if not inference:
             train_indices, valid_indices = train_test_split(
                 range(len(adata)), train_size=config.data.train_pct
             )
 
             train_sampler = CenterMaskSampler(
-                metadata=metadata,
+                metadata=df,
                 adata=adata,
                 patch_size=config.data.patch_size,
                 cell_id_colname=config.data.cell_id_colname,
@@ -97,7 +75,7 @@ class AIBSTrainer(BaseTrainer):
             )
 
             valid_sampler = CenterMaskSampler(
-                metadata=metadata,
+                metadata=df,
                 adata=adata,
                 patch_size=config.data.patch_size,
                 cell_id_colname=config.data.cell_id_colname,
@@ -107,32 +85,34 @@ class AIBSTrainer(BaseTrainer):
                 indices=valid_indices,
             )
 
-            train_loader = torch.utils.data.DataLoader(
-                train_sampler,
-                batch_size=config.data.batch_size,
-                shuffle=True,
-                num_workers=config.data.num_workers,
-                pin_memory=True,
-                collate_fn=collate,
-                prefetch_factor=4,
-            )
+            trn_samplers.append(train_sampler)
+            valid_samplers.append(valid_sampler)
 
-            valid_loader = torch.utils.data.DataLoader(
-                valid_sampler,
-                batch_size=config.data.batch_size,
-                shuffle=False,
-                num_workers=config.data.num_workers,
-                pin_memory=True,
-                collate_fn=collate,
-                prefetch_factor=4,
-            )
+        train_loader = torch.utils.data.DataLoader(
+            torch.utils.data.ConcatDataset(trn_samplers),
+            batch_size=config.data.batch_size,
+            num_workers=config.data.num_workers,
+            pin_memory=False,
+            shuffle=True,
+            collate_fn=collate,
+            prefetch_factor=4,  
+        )
 
-            return train_loader, valid_loader
+        valid_loader = torch.utils.data.DataLoader(
+            torch.utils.data.ConcatDataset(valid_samplers),
+            batch_size=config.data.batch_size,
+            num_workers=config.data.num_workers,
+            pin_memory=True,
+            shuffle=True,
+            collate_fn=collate,
+            prefetch_factor=4,
+        )
 
+        return train_loader, valid_loader
 
 @hydra.main(
     config_path="/home/ajl/work/d2/code/brainformr/scripts/config",
-    config_name="aibs1.yaml",
+    config_name="zhuang.yaml",
 )
 def main(config: DictConfig):
     print(OmegaConf.to_yaml(config))
@@ -142,11 +122,10 @@ def main(config: DictConfig):
 
     setup_training(config)
 
-
 def setup_training(config: DictConfig):
     timestamp = get_timestamp()
 
-    lightning_model = AIBSTrainer(config)
+    lightning_model = ZhuangTrainer(config)
     trn_loader, valid_loader = lightning_model.load_data(config)
 
     checkpoint_dir_root = pathlib.Path(config.checkpoint_dir) / timestamp
@@ -170,7 +149,7 @@ def setup_training(config: DictConfig):
     chkpoint = L.pytorch.callbacks.ModelCheckpoint(
         monitor="valid/nll_epoch",
         dirpath=checkpoint_dir_root,
-        filename="model-{epoch:02d}-{validNLL_:.2f}",
+        filename="model-{epoch:02d}-{validNLL_:.5f}",
         save_top_k=2,
         mode="min",
     )

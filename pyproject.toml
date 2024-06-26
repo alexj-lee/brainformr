@@ -55,8 +55,8 @@ dependencies = [
   "jaxtyping >= 0.2",
   "scvi-tools >= 1.0.0",
   "lightning >= 2.1.0",
+  "colorcet",
 ]
 
 [project.urls]
 Home = "https//github.com/eelxela/brainformr"
-

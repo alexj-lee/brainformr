@@ -1,5 +1,5 @@
-adata_path: "~/abc_dataset/C57BL6J-638850-log2_dense.h5ad"
-metadata_path: "~/abc_dataset/metadata-joined-ccf.csv"
+adata_path: "abc_dataset/C57BL6J-638850-log2_dense.h5ad"
+metadata_path: "abc_dataset/metadata-joined-ccf.csv"
 batch_size: 32
 num_workers: 2
 patch_size: 

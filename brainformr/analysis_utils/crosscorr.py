@@ -17,8 +17,10 @@ def corr_predictions(
 
     Parameters
     ---------
-    a: Float[torch.Tensor, "ncells ngenes"] obs by features matrix
-    b: Float[torch.Tensor, "ncells ngenes"] obs by features matrix
+    a: Float[torch.Tensor, "ncells ngenes"] 
+        obs by features matrix
+    b: Float[torch.Tensor, "ncells ngenes"] 
+        obs by features matrix; checked to be same size as `a`
 
     Returns
     -------

@@ -1,6 +1,6 @@
 from collections import namedtuple
 from random import shuffle
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import anndata as ad
 import numpy as np
@@ -12,13 +12,14 @@ from jaxtyping import Float, Int
 NeighborhoodMetadata = namedtuple(
     "NeighborhoodMetadata",
     (
-        "observed_expression", # as float matrix, n_neighbor x g
-        "masked_expression", # as float matrix, n_masked (ex 1) x g
-        "observed_cell_type", # int vector of length n_neighbor
-        "masked_cell_type", # in vector of n_masked length
-        "num_cells_obs", # number of observed cells (cells in neighborhd)
+        "observed_expression",  # as float matrix, n_neighbor x g
+        "masked_expression",  # as float matrix, n_masked (ex 1) x g
+        "observed_cell_type",  # int vector of length n_neighbor
+        "masked_cell_type",  # in vector of n_masked length
+        "num_cells_obs",  # number of observed cells (cells in neighborhd)
     ),
 )
+
 
 def random_indices_from_series(df: Union[pd.Series, pd.DataFrame], n: int) -> List[int]:
     # randomly sample n indices from length of df/series
@@ -28,7 +29,7 @@ def random_indices_from_series(df: Union[pd.Series, pd.DataFrame], n: int) -> Li
 
 
 def index_outer_product(n: int) -> Int[np.ndarray, "seqlen 2"]:  # noqa: F722
-    """Compute the product of the set of indices with itself. In other words,
+    """Compute the product of the set of indices with itself and reshapes to (, 2). In other words,
     return all pairs of indices from the set (0, 1, ..., n).
 
     Returns
@@ -53,8 +54,29 @@ def index_outer_product(n: int) -> Int[np.ndarray, "seqlen 2"]:  # noqa: F722
     grid = np.dstack(np.meshgrid(i, i)).reshape(-1, 2)
     return grid
 
+def add_gaussian(xy, sigma):
+    noise = np.random.standard_normal(size=xy.shape) * sigma
+    return xy + noise
 
-def collate(batched_metadata: NeighborhoodMetadata):
+def collate(batched_metadata: NeighborhoodMetadata) -> Dict[str, torch.Tensor | int]:
+    """Collates metadata which is a list of NeighborhoodMetadata namedtuples.
+    One important computation is the attention matrices that the transformer will use.
+    In particular the `encoder_mask` which is a square matrix with (n_obs_cells + n_cls_tokens [=bs]) length.
+    The `pooling_mask` is a matrix of shape (n_pooling_tokens [=bs], n_obs_cells + n_cls_tokens) which is used to pool the hidden states.
+    The `decoder_mask` is a square matrix of shape (n_pooled_tokens [=bs], n_query_tokens [=bs]) which is used to mask the decoding queries.
+    The other items (the expression matrices and integer-encoded cell type vector) are simply concatenated.
+
+    Parameters
+    ----------
+    batched_metadata : NeighborhoodMetadata
+        Contains attributes: observed_expression, masked_expression, observed_cell_type, masked_cell_type, num_cells_obs
+        Expression are float valued (n_cells x genes) matrices and cell types are integer-valued vectors.
+
+    Returns
+    -------
+    dict
+        A dictionary containing the collated metadata and the attention masks.
+    """
     observed_expression = []
     masked_expression = []
     observed_cell_type = []
@@ -64,12 +86,12 @@ def collate(batched_metadata: NeighborhoodMetadata):
     tot_num_obs_cells = sum([metadata.num_cells_obs for metadata in batched_metadata])
     bs = len(batched_metadata)
 
-    attn_mask = torch.ones(
+    encoder_mask = torch.ones(
         tot_num_obs_cells + bs * 2, tot_num_obs_cells + bs * 2, dtype=torch.bool
     )
 
     decoder_mask = torch.ones(bs * 2, bs * 2, dtype=torch.bool)
-    pooling_mask = torch.ones(bs, bs + tot_num_obs_cells)
+    pooling_mask = torch.ones(bs, bs + tot_num_obs_cells, dtype=torch.bool)
 
     offset = 0
 
@@ -96,17 +118,17 @@ def collate(batched_metadata: NeighborhoodMetadata):
         x = indices[:, 0]
         y = indices[:, 1]
 
-        attn_mask[x, y] = False
-        attn_mask[pooling_indices, y] = False
-        attn_mask[x, pooling_indices] = False
-        attn_mask[-pooling_tok_idx, -pooling_tok_idx] = False
+        encoder_mask[x, y] = False
+        encoder_mask[pooling_indices, y] = False
+        encoder_mask[x, pooling_indices] = False
+        encoder_mask[-pooling_tok_idx, -pooling_tok_idx] = False
 
-        attn_mask[decoding_indices, y] = False
-        attn_mask[x, decoding_indices] = False
-        attn_mask[decoding_indices, decoding_indices] = False
+        encoder_mask[decoding_indices, y] = False
+        encoder_mask[x, decoding_indices] = False
+        encoder_mask[decoding_indices, decoding_indices] = False
 
-        attn_mask[pooling_indices, decoding_indices] = False
-        attn_mask[decoding_indices, pooling_indices] = False
+        encoder_mask[pooling_indices, decoding_indices] = False
+        encoder_mask[decoding_indices, pooling_indices] = False
 
         pooling_mask[i, offset : offset + num_hidden_cells] = False
 
@@ -134,9 +156,9 @@ def collate(batched_metadata: NeighborhoodMetadata):
         observed_cell_type=observed_cell_type,
         masked_cell_type=masked_cell_type,
         observed_neighboorhood_lens=observed_neighboorhood_lens,
-        full_mask=attn_mask,
+        full_mask=encoder_mask,
         pooling_mask=pooling_mask,
-        encoder_mask=attn_mask[:num_cells_plus_cls, :num_cells_plus_cls],
+        encoder_mask=encoder_mask[:num_cells_plus_cls, :num_cells_plus_cls],
         decoder_mask=decoder_mask,
         bs=bs,
     )
@@ -145,7 +167,7 @@ def collate(batched_metadata: NeighborhoodMetadata):
 class CenterMaskSampler(torch.utils.data.Dataset):
     def __init__(
         self,
-        metadata: Union[pd.DataFrame],
+        metadata: pd.DataFrame,
         adata: ad.AnnData,
         patch_size: Union[List[int], Tuple[int]],
         cell_id_colname: Optional[str] = "cell_label",
@@ -154,41 +176,47 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         max_num_cells: Optional[Union[int, None]] = None,
         indices: Optional[Union[List[int], None]] = None,
     ):
-        """_summary_
+        """Sampler that returns the gene expression matrices and cell-type identity vectors
+         for two groups of cells: the observed cells and the masked/reference cells. The observed cells
+         are the cells in the neighborhood of the reference cell (set by `patch_size`).
+
+         We assume the type will be found at `cell_type_colname` and that `cell_id` can be used
+         succesfully to index into the adata object.
 
         Parameters
         ----------
-        metadata : Union[pd.DataFrame]
-            _description_
+        metadata : pd.DataFrame
+            Metadata for the cells. Must contain columns for cell_id, cell_type, x, y, and tissue_section.
         adata : ad.AnnData
-            _description_
+            Expression-containing (as .X) anndata. We assume input will be log scaled.
         patch_size : Union[List[int], Tuple[int]]
-            _description_
+            Size in arbitrary units for the neighborhood calculation.
         cell_id_colname : Optional[str], optional
-            _description_, by default "cell_label"
+            The column to use to index into the anndata, by default "cell_label"
         cell_type_colname : Optional[str], optional
-            _description_, by default "cell_type"
+            The column to use to access the cell type identities as cls-encoding integers, by default "cell_type"
         tissue_section_colname : Optional[str], optional
-            _description_, by default "brain_section_label"
+            To simplify computation, group the cells in each sectionsby this column, by default "brain_section_label"
         max_num_cells : Optional[Union[int, None]], optional
-            _description_, by default None
+            How many cells to threshold at for the neighborhood size, by default None
         indices: Optional[Union[List[int], None]], optional
-            _description, by default None
+            Used to specify train/test sets via subsetting on only these cells. This should be a numeric index compatible with 
+            `.iloc`, so it may be advisable to reset the index of the dataframe. By default None
 
         Raises
         ------
         TypeError
-            _description_
+            If adata is not an `ad.annData` object
         ValueError
-            _description_
+            If metadata does not contain the necessary columns
         TypeError
-            _description_
+            If metadata is not a pandas DataFrame
         ValueError
-            _description_
+            If patch_size is not a tuple of length 2
         ValueError
-            _description_
+            If metadata and adata are not the same length
         ValueError
-            _description_
+            If metadata does not contain columns "x" and "y"
         """
         if isinstance(adata, ad.AnnData) is False:
             raise TypeError(
@@ -235,18 +263,19 @@ class CenterMaskSampler(torch.utils.data.Dataset):
 
         self.adata = adata
         self.patch_size = np.array(patch_size).astype(int)
+        #self.noise_fac = 2
 
         self._preprocess_metadata()
 
-        # so that later we can simply pass a train/valid/test set of indices 
+        # so that later we can simply pass a train/valid/test set of indices
         # instead of filtering up front
-        self.indices = indices if indices is not None else range(self.length)
+        self.indices = indices if indices is not None else list(range(self.length))
 
     def __len__(self):
         return self.length
 
     def _preprocess_metadata(self):
-        # for use in reducing complexity of neighborhood queries in getitem 
+        # for use in reducing complexity of neighborhood queries in getitem
         self.tissue_section_mapper = {
             section_label: subset_df
             for section_label, subset_df in self.metadata.groupby(
@@ -261,7 +290,7 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         tissue_section: pd.DataFrame,
         discretize: bool = False,
     ) -> pd.DataFrame:
-        """Return the cells from tissue_section that are within 
+        """Return the cells from tissue_section that are within
         patch_size distance away from centroid.
 
         Parameters
@@ -279,7 +308,7 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         Returns
         -------
         pd.DataFrame
-            Cells inside the neighborhood, inclusive of the 
+            Cells inside the neighborhood, inclusive of the
             centroid cell / reference cell.
         """
         start = centroid - (patch_size / 2)
@@ -297,12 +326,14 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         return self.adata[indices].X
 
     def __getitem__(self, index) -> dict:
-        orig_idx = self.indices[index] # see init for expln
+        orig_idx = self.indices[index]  # see init for expln
         metadata_row = self.metadata.iloc[orig_idx]
         index = metadata_row[self.cell_id_colname]
 
         centroid = np.array([metadata_row["x"], metadata_row["y"]])
-        tissue_section: Union[pd.DataFrame, None] = self.tissue_section_mapper.get(
+#        centroid = add_gaussian(centroid, self.noise_fac)
+
+        tissue_section: pd.DataFrame = self.tissue_section_mapper.get(
             metadata_row[self.tissue_section_colname], None
         )
 
@@ -312,7 +343,7 @@ class CenterMaskSampler(torch.utils.data.Dataset):
             )
 
         all_neighborhood_cells = self.get_nearby_cells(
-            centroid, self.patch_size, tissue_section, discretize=False
+            centroid, self.patch_size, tissue_section, discretize=True
         )
 
         if len(all_neighborhood_cells) == 1:
@@ -324,12 +355,12 @@ class CenterMaskSampler(torch.utils.data.Dataset):
                 observed_expression=torch.FloatTensor([]),
                 masked_expression=torch.from_numpy(masked_expression),
                 observed_cell_type=torch.LongTensor([]),
-                masked_cell_type=torch.from_numpy([masked_cell_type]).long(),
-                num_cells=1,
+                masked_cell_type=torch.LongTensor([masked_cell_type]),
+                num_cells_obs=0,
             )
             return neighborhood_metadata
 
-        return self.neighborhood_gather(all_neighborhood_cells, index)
+        return self.neighborhood_gather(all_neighborhood_cells, index, as_dict=False)
 
     def neighborhood_gather(
         self,
@@ -343,12 +374,12 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         Parameters
         ----------
         neighborhood_cells : pd.DataFrame
-            Dataframe containing the cells in the neighborhood. One 
+            Dataframe containing the cells in the neighborhood. One
             cell's metadata per row.
         ref_cell_label : str
             The label of the reference cell as a string.
         as_dict : Optional[bool], optional
-            Return a dictionary (True) or NeighborhoodMetadata (False), 
+            Return a dictionary (True) or NeighborhoodMetadata (False),
             by default False.
 
         Returns
@@ -373,17 +404,17 @@ class CenterMaskSampler(torch.utils.data.Dataset):
 
         masked_cell = neighborhood_cells[neighborhood_cells_indices == ref_cell_label]
 
-        if self.max_num_cells < num_cells_neighborhood - 1:
+        if self.max_num_cells < (num_cells_neighborhood - 1):
             random_indices: List[int] = random_indices_from_series(
                 observed_cells[self.cell_id_colname], self.max_num_cells
             )
             observed_cells = observed_cells.iloc[random_indices]
 
         observed_cell_types = observed_cells[self.cell_type_colname].values
-        observed_expression: npt.ArrayLike = expression[observed_cells.index]
+        observed_expression: Float[np.ndarray, "cells genes"] = expression[observed_cells.index] # noqa: F722
 
         masked_cell_types = masked_cell[self.cell_type_colname].values
-        masked_expression: npt.ArrayLike = expression[masked_cell.index]
+        masked_expression: Float[np.ndarray, "cells genes"] = expression[masked_cell.index] # noqa: F722
 
         num_cells_obs = len(observed_cells)
 
@@ -399,7 +430,7 @@ class CenterMaskSampler(torch.utils.data.Dataset):
             return NeighborhoodMetadata(
                 torch.from_numpy(observed_expression),
                 torch.from_numpy(masked_expression),
-                torch.from_numpy(observed_cell_types).long(),
-                torch.from_numpy(masked_cell_types).long(),
+                torch.from_numpy(observed_cell_types),
+                torch.from_numpy(masked_cell_types),
                 num_cells_obs,
             )

@@ -1,24 +1,7 @@
 from typing import Optional
 
+import torch
 from torch import nn
-
-
-def _init_xformer_weights(m: nn.Module):
-    # see: unsure if it has been fixed as of 2023-12-04 https://github.com/pytorch/pytorch/issues/72253
-    for param_name, param in m.named_parameters():
-        if (
-            "decoder" in param_name
-            and ("linear" in param_name or "proj" in param_name)
-            and "bias" not in param_name
-        ):
-            nn.init.kaiming_normal_(param)
-
-        if (
-            "encoder" in param_name
-            and ("linear" in param_name or "proj" in param_name)
-            and "bias" not in param_name
-        ):
-            nn.init.kaiming_normal_(param)
 
 
 def get_projection_layers(n_genes: int, feature_dim: int) -> nn.Sequential:
@@ -37,7 +20,7 @@ def set_up_transformer_layers(
     num_heads: int,
     depth: int,
     dropout_p: Optional[float] = 0.0,
-    bias: Optional[bool] = True,
+    bias: Optional[bool] = False,
     zero_attn: Optional[bool] = True,
 ):
     layer = nn.TransformerEncoderLayer(
@@ -70,9 +53,10 @@ def _init_xformer_weights(m: nn.Module):
         if (
             "linear" in param_name or "proj" in param_name
         ) and "bias" not in param_name:
-            nn.init.kaiming_normal_(param)
+            with torch.no_grad():
+                nn.init.xavier_normal_(param)
 
         if (
-            "linear" in param_name or "proj" in param_name
-        ) and "bias" not in param_name:
-            nn.init.kaiming_normal_(param)
+            "linear" in param_name and "bias" in param_name):
+                with torch.no_grad():
+                    param.fill_(0)
