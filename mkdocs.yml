@@ -71,7 +71,6 @@ theme:
           toggle:
              icon: material/weather-sunny
              name: Switch to light mode
-    custom_dir: docs/.overrides
     icon:
         repo: fontawesome/brands/github  # GitHub logo in top right
         logo:  fontawesome/solid/brain  # Brain logo in top left
