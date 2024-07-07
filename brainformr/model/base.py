@@ -142,7 +142,7 @@ class CellTransformer(nn.Module):
         ref_cell_embed = cells_embed[-bs:]
 
         with torch.autocast(dtype=torch.float32, device_type=self.put_device):
-            # bfloat doesn't work here for lgamma backward (in zinb, otherwise will error)
+            # sometimes bfloat doesn't work here for lgamma backward (in zinb, otherwise will error)
             zinb_params = self.zinb_proj(ref_cell_embed)
 
         cls_toks = cells_embed[-(num_hidden + bs) : -num_hidden]

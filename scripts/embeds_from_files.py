@@ -1,7 +1,7 @@
 import argparse
 import os
-import sys
 import warnings
+import pathlib
 
 import anndata as ad
 import pandas as pd
@@ -16,33 +16,42 @@ from brainformr.data import CenterMaskSampler, collate
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--adata_path", type=str, help="Path to anndata file.")
-    parser.add_argument("--metadata_path", type=str, help="Path to metadata file.")
-    parser.add_argument("--config_path", type=str, help="Path to config file.")
-    parser.add_argument('--checkpoint_path', type=str, help='Path to checkpoint file from training.')
+    parser.add_argument("--adata_path", type=str, help="Path to anndata file.", required=True)
+    parser.add_argument("--metadata_path", type=str, help="Path to metadata file.", required=True)
+    parser.add_argument("--config_path", type=str, help="Path to config file.", required=True)
+    parser.add_argument('--checkpoint_path', type=str, help='Path to checkpoint file from training.', required=True)
+    parser.add_argument('--output_path', type=str, help='Path to save embeddings.', required=True)
+    parser.add_argument('--celltype_colname', type=str, help='The column name that contains the cell type assignments', required=False, default='subclass')
     return parser.parse_args()
 
 def main():
     args = parse_args()
     if not os.path.exists(args.adata_path):
-        print(f"Anndata file not found: {args.adata_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Anndata file not found: {args.adata_path}")
 
     if not os.path.exists(args.metadata_path):
-        print(f"Metadata file not found: {args.metadata_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"Metadata file not found: {args.metadata_path}")
+
+    output_path = pathlib.Path(args.output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     adata = ad.read_h5ad(args.adata_path)
     # filter control probes
-    adata[:, ~adata.var.gene_symbol.str.contains("Blank")]
+    adata[:, ~adata.var.index.str.contains("Blank")]
+    #adata[:, ~adata.var.gene_symbol.str.contains("Blank")]
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", pd.errors.DtypeWarning)
         metadata = pd.read_csv(args.metadata_path)
 
+    cell_type_colname = 'subclass_name' # args.celltype_colname
+
     metadata["cell_label"] = metadata["cell_label"].astype(str)
-    metadata["x"] = metadata["x_reconstructed"] * 100
-    metadata["y"] = metadata["y_reconstructed"] * 100
+    metadata['cell_type'] = metadata[cell_type_colname].astype(str)
+    # metadata["x"] = metadata["x_reconstructed"] * 100
+    # metadata["y"] = metadata["y_reconstructed"] * 100]
+    metadata["x"] = metadata["spatial_x"] / 10.
+    metadata["y"] = metadata["spatial_y"] / 10.
 
     metadata = metadata[
         [
@@ -54,7 +63,7 @@ def main():
         ]
     ]
 
-    metadata["cell_type"] = LabelEncoder.fit_transform(metadata["subclass"])
+    metadata["cell_type"] = LabelEncoder().fit_transform(metadata['cell_type'])
     metadata["cell_type"] = metadata["cell_type"].astype(int)
 
     metadata = metadata.reset_index(drop=True)
@@ -91,8 +100,9 @@ def main():
 
     checkpoint = torch.load(args.checkpoint_path)
     state_dict = {}
+
     model_state_dict = checkpoint['state_dict']
-    for key in model_state_dict['state_dict']:
+    for key in model_state_dict:
         key_wo_model = key.replace('model.', '')
         state_dict[key_wo_model] = model_state_dict[key]
     # if continuing after Lightning checkpoint need to change keys

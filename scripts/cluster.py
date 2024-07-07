@@ -3,6 +3,7 @@
 # then use cuml to KMeans the embeddings into 10 clusters
 
 import argparse
+import pathlib
 
 import cuml
 import numpy as np
@@ -18,10 +19,20 @@ def parse_args():
 
 def main():
     args = parse_args()
-    embeds = torch.load(args.embeds_path)
-    embeds = embeds.numpy()
-
-    kmeans = cuml.KMeans(n_clusters=args.n_clust)
+    embeds_path = pathlib.Path(args.embeds_path)
+    if embeds_path.exists() is False:
+        raise FileNotFoundError(f'Embeddings file not found: {args.embeds_path}')
+    
+    if embeds_path.suffix in ('.pth', 'pt'):
+        embeds = torch.load(embeds_path)
+        embeds = embeds.numpy()
+    elif embeds_path.suffix in ('.npy',):
+        embeds = np.load(embeds_path)
+        
+    kmeans = cuml.KMeans(n_clusters=args.n_clust, 
+                         max_iter=1000, 
+                         n_init=3, 
+                         random_state=1221)
     kmeans.fit(embeds)
     labels = kmeans.predict(embeds)
 
