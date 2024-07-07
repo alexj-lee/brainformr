@@ -7,3 +7,4 @@ mkdocs-literate-nav
 mkdocs-autorefs
 mkdocs-jupyter
 mkdocs-with-pdf
+mkdocs-section-index
