@@ -90,3 +90,4 @@ cluster_and_visualize.pdf
 *.pdf
 
 *.pth
+scripts/aibs-embeds.pth
