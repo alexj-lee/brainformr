@@ -88,3 +88,5 @@ smooth_embeddings.pdf
 count_celltypes_per_region.pdf
 cluster_and_visualize.pdf
 *.pdf
+
+*.pth
