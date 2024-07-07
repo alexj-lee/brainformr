@@ -30,8 +30,10 @@ def main():
         embeds = np.load(embeds_path)
         
     kmeans = cuml.KMeans(n_clusters=args.n_clust, 
-                         max_iter=1000, 
+                         max_iter=1500, 
                          n_init=3, 
+                         oversampling_factor=3,
+                         tol=1e-10,
                          random_state=1221)
     kmeans.fit(embeds)
     labels = kmeans.predict(embeds)

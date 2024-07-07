@@ -1,37 +1,28 @@
-name: Docs
-
+name: ci 
 on:
   push:
     branches:
       - main
-
-  workflow_dispatch:
-
+permissions:
+  contents: write
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - uses: actions/checkout@v2
-      
-      - name: Install Python 3
-        uses: actions/setup-python@v1
-        with:
-          python-version: 3.10.14
-      
-      - name: Install dependencies
+      - uses: actions/checkout@v4
+      - name: Configure Git Credentials
         run: |
-          python -m pip install --upgrade pip
-          pip install -r docs/requirements.txt
-          pip install . 
-      - name: Build docs
-        run: |
-          mkdocs build
-      - name: Upload docs
-        uses: actions/upload-artifact@v2
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+      - uses: actions/setup-python@v5
         with:
-          name: docs
-          path: site
-        
-        
-        
+          python-version: 3.x
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV 
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: .cache
+          restore-keys: |
+            mkdocs-material-
+      - run: pip install mkdocs-material 
+      - run: mkdocs gh-deploy --force
