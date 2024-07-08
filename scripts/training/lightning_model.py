@@ -33,7 +33,13 @@ class BaseTrainer(L.LightningModule, ABC):
         self.model = model
         self.global_config = config
         if (checkpoint is not None) and (checkpoint != ""):
-            self.load_checkpoint(checkpoint)
+            # checkpoint = torch.load(checkpoint)
+            # state_dict = {}
+            # for key in checkpoint['model_state_dict']:
+            #     key_wo_model = key.replace('model.', '')
+            #     state_dict[key_wo_model] = 
+
+            self.load_checkpoint(checkpoint, lightning=True)
 
     def label_to_cls(self, labels_str: pd.Series):
         le = LabelEncoder()
@@ -56,19 +62,43 @@ class BaseTrainer(L.LightningModule, ABC):
             return loss, h_expr_counts
         return loss
 
-    def load_checkpoint(self, checkpoint_path: str, lightning: bool = False):
-        strict = True
+    def compile_specific(self):
+        self.model.encoder = torch.compile(self.model.encoder)
+        self.model.decoder = torch.compile(self.model.decoder)
+        #self.model.expression_projection = torch.compile(
+        #    self.model.expression_projection
+        #) 
+        self.model.attn_pool = torch.compile(self.model.attn_pool)
+        self.model.zinb_proj = torch.compile(self.model.zinb_proj)
+        #self.model.encoder_cell_embed = torch.compile(self.model.encoder_cell_embed)
+        #self.model.decoder_cell_embed = torch.compile(self.model.decoder_cell_embed)
+
+    def load_checkpoint(self, checkpoint_path: str, lightning: bool = False, strict: bool = True):
         checkpoint = torch.load(checkpoint_path)
 
+        # TODO: implement loading of torch.compile'd models
+        # also probably change this to something more like `init_from` or something
         print('Started loading state dict.')
         if lightning:
+            model_state_dict = self.model.state_dict()
+
             state_dict = {}
-            for key in checkpoint["state_dict"]:
-                state_dict[key.replace("model.", "")] = checkpoint["state_dict"][key]
+            for key, wt in checkpoint["state_dict"].items():
+                key_wo_model = key.replace("model.", "")
+
+                if wt.shape != model_state_dict[key_wo_model].shape:
+                    state_dict[key_wo_model] = model_state_dict[key_wo_model]
+                else:
+                    state_dict[key_wo_model] = wt
+
+            for key in model_state_dict.keys():
+                if key not in state_dict:
+                    state_dict[key] = model_state_dict[key]
+
         else:
             state_dict = checkpoint['state_dict']
 
-        self.load_state_dict(state_dict, strict=strict)
+        self.model.load_state_dict(state_dict, strict=strict)
         print('Finished loading state dict.')
 
     def training_step(self, data_dict: dict):

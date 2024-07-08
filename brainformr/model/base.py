@@ -25,7 +25,7 @@ class CellTransformer(nn.Module):
         bias: Optional[bool] = False,
         zero_attn: Optional[bool] = True,
     ):
-        """A transformer model for single-cell data prediction.
+        """An encoder-decoder model with attention pooling prior to decoder.
 
         Parameters
         ----------
@@ -77,18 +77,20 @@ class CellTransformer(nn.Module):
             encoder_num_heads,
             encoder_depth,
             xformer_dropout,
-            False,
+            bias,
             zero_attn,
         )
+        #self.encoder = torch.compile(self.encoder)
 
         self.decoder = set_up_transformer_layers(
             decoder_embedding_dim,
             decoder_num_heads,
             decoder_depth,
             xformer_dropout,
-            False,
+            bias,
             zero_attn,
         )
+        #self.decoder = torch.compile(self.decoder)
 
         self.zinb_proj = ZINBProj(
             embed_dim=decoder_embedding_dim, n_genes=n_genes, eps=self.eps

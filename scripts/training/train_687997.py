@@ -145,8 +145,9 @@ def setup_training(config: DictConfig):
     trn_loader, valid_loader = lightning_model.load_data(config)
 
     if config.model_checkpoint not in (None, ''):
-       lightning_model.load_checkpoint(config.model_checkpoint)
+       lightning_model.load_checkpoint(config.model_checkpoint, lightning=True)
        
+    lightning_model.compile_specific()
 
     checkpoint_dir_root = pathlib.Path(config.checkpoint_dir) / timestamp
     config_dict = OmegaConf.to_container(config, resolve=True)
