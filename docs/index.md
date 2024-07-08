@@ -105,15 +105,15 @@ If this is useful to you, please consider citing our preprint:
 
 ```
 @article {Lee2024.05.05.592608,
-        author = {Alex Jihun Lee and Shenqin Yao and Nicholas Lusk and Hongkui Zeng and Bosiljka Tasic and Reza Abbasi-Asl},
-        title = {Data-driven fine-grained region discovery in the mouse brain with transformers},
-        elocation-id = {2024.05.05.592608},
-        year = {2024},
-        doi = {10.1101/2024.05.05.592608},
-        publisher = {Cold Spring Harbor Laboratory},
-        abstract = {Technologies such as spatial transcriptomics offer unique opportunities to define the spatial organization of the mouse brain. We developed an unsupervised training scheme and novel transformer-based deep learning architecture to detect spatial domains in mouse whole-brain spatial transcriptomics data. Our model learns local representations of molecular and cellular statistical patterns. These local representations can be clustered to identify spatial domains within the brain from coarse to fine-grained. Discovered domains are spatially regular, even with several hundreds of spatial clusters. They are also consistent with existing anatomical ontologies such as the Allen Mouse Brain Common Coordinate Framework version 3 (CCFv31) and can be visually interpreted at the cell type or transcript level. We demonstrate our method can be used to identify previously uncatalogued subregions, such as in the midbrain, where we uncover gradients of inhibitory neuron complexity and abundance. We apply our method to a separate multi-animal whole-brain spatial transcriptomic dataset and observe that inclusion of both sagittal and coronal tissue slices in region identification improves correspondence of spatial domains to CCF.Competing Interest StatementThe authors have declared no competing interest.},
-        URL = {https://www.biorxiv.org/content/early/2024/05/07/2024.05.05.592608},
-        eprint = {https://www.biorxiv.org/content/early/2024/05/07/2024.05.05.592608.full.pdf},
-        journal = {bioRxiv}
+	author = {Lee, Alex J. and Yao, Shenqin and Lusk, Nicholas and Ng, Lydia and Kunst, Michael and Zeng, Hongkui and Tasic, Bosiljka and Abbasi-Asl, Reza},
+	title = {Data-driven fine-grained region discovery in the mouse brain with transformers},
+	elocation-id = {2024.05.05.592608},
+	year = {2024},
+	doi = {10.1101/2024.05.05.592608},
+	publisher = {Cold Spring Harbor Laboratory},
+	abstract = {Technologies such as spatial transcriptomics offer unique opportunities to define the spatial organization of the mouse brain. We developed an unsupervised training scheme and novel transformer-based deep learning architecture to detect spatial domains across the whole mouse brain using spatial transcriptomics data. Our model learns local representations of molecular and cellular statistical patterns which can be clustered to identify spatial domains within the brain from coarse to fine-grained. Discovered domains are spatially regular, even with several hundreds of spatial clusters. They are also consistent with existing anatomical ontologies such as the Allen Mouse Brain Common Coordinate Framework version 3 (CCFv3) and can be visually interpreted at the cell type or transcript level. We demonstrate our method can be used to identify previously uncatalogued subregions, such as in the midbrain, where we uncover gradients of inhibitory neuron complexity and abundance. Notably, these subregions cannot be discovered using other methods. We apply our method to a separate multi-animal whole-brain spatial transcriptomic dataset and show that our method can also robustly integrate spatial domains across animals.Competing Interest StatementThe authors have declared no competing interest.},
+	URL = {https://www.biorxiv.org/content/early/2024/06/13/2024.05.05.592608},
+	eprint = {https://www.biorxiv.org/content/early/2024/06/13/2024.05.05.592608.full.pdf},
+	journal = {bioRxiv}
 }
 ```
