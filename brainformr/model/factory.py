@@ -4,13 +4,14 @@ import torch
 from torch import nn
 
 
-def get_projection_layers(n_genes: int, feature_dim: int) -> nn.Sequential:
+def get_projection_layers(n_genes: int, feature_dim: int, actvn_last: bool = False) -> nn.Sequential:
     modules = nn.Sequential(
         nn.Linear(n_genes, feature_dim),
         nn.LayerNorm(feature_dim),
         nn.GELU(),
         nn.Linear(feature_dim, feature_dim),
         nn.LayerNorm(feature_dim),
+        nn.GELU() if actvn_last else nn.Identity()
     )
     return modules
 

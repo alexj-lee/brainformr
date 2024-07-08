@@ -6,12 +6,13 @@ This is documentation for code written as part of the manuscript ["Data-driven f
 
 * `pip install git+github.com:alexj-lee/brainformr.git` or clone and pip install; alternatively use the Dockerfile -- `PyTorch` and some other heavy libraries are required, which could take a couple minutes (<10).
 
-## TLDR get started:
+## TLDR get started
 
 1. change data paths in `config/data` or create new data yaml file in that folder
-2. specify model architecture in `config/model` yaml file
+2. specify model architecture (depth, width etc.) configs in `config/model` yaml file
 3. implement the `load_data` method for `BaseTrainer` in `scripts/training/lightning_model.py` (see `train_zhuang.py` and `train_aibs_mouse.py` for reference)
-4. add wandb key if desired  to top level config in `config`
+  * in essence this is normalization: mapping spatial x and y coordinates in your data to "x" and "y" and scaling them, also normalizing cell type column names
+4. add `wandb` key if desired to top level config in `config`
 5. copy boilerplate for initiating training from `train_aibs_mouse.py` or `train_zhuang.py` (ie code in `main` that); make sure to specify correct config file in the `@hydra.main` decorator
 
 ## Core code components and usage

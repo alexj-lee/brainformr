@@ -19,12 +19,27 @@ class CellLocationTransformer(nn.Module):
         cell_cardinality: int = 307,
         device: str = "cuda",
         eps: float = 1e-9,
-        use_stable_embedding: bool = False,
         attn_pool: bool = False,
         attn_pool_heads: int = 8,
-        fancy_encoding: bool = False,
+        actvn_last: bool = False,
         num_output_genes: int = 500,
     ):
+        """An encoder-decoder model with attention pooling prior to decoder. 
+
+        Args:
+            encoder_embedding_dim (int): embedding dim 
+            encoder_num_heads (int): 
+            encoder_depth (int): 
+            decoder_embedding_dim (int): 
+            decoder_num_heads (int): 
+            decoder_depth (int): 
+            cell_cardinality (int, optional): Number of cell types. Defaults to 307.
+            device (str, optional): Device for transfering tensors to in `forward`. Defaults to "cuda".
+            eps (float, optional): Floor for nonnegative parameters of negative binomial regression layers. Defaults to 1e-9.
+            attn_pool (bool, optional): Whether to use attention pooling or not. Defaults to False.
+            attn_pool_heads (int, optional): Number of attention pool heads. Defaults to 8.
+            num_output_genes (int, optional): Number of genes to regress. Defaults to 500.
+        """
         super().__init__()
 
         self.encoder_embedding_dim = encoder_embedding_dim
@@ -42,7 +57,7 @@ class CellLocationTransformer(nn.Module):
             nn.GELU(),
             nn.Linear(_feature_dim, _feature_dim),
             nn.LayerNorm(_feature_dim),
-            nn.GELU() if fancy_encoding else nn.Identity(),
+            nn.GELU() if actvn_last else nn.Identity(),
         )
 
         self.cell_embedding = nn.Embedding(cell_cardinality, _feature_dim)
