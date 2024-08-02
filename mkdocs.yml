@@ -1,15 +1,16 @@
 site_name: "brainformr documentation"
 nav:
   - 'index.md'
-  - Summary code information: 
+  - Code discussions and background: 
     - data + dataloader: data.md
     - model attention matrix format: model.md
     - post-hoc analysis: analysis.md
   #- Generating embeddings:
   #- Clustering embeddings:
-   
-  - Training on Zhuang lab data:
-    - zhuang_abc.md
+
+  - Other applications: 
+    - Training on Zhuang lab data:
+      - zhuang_abc.md
   - API Reference: reference/
 
 repo_url: https://github.com/alexj-lee/brainformr

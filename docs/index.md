@@ -6,19 +6,27 @@ This is documentation for code written as part of the manuscript ["Data-driven f
 
 * `pip install git+github.com:alexj-lee/brainformr.git` or clone and pip install; alternatively use the Dockerfile -- `PyTorch` and some other heavy libraries are required, which could take a couple minutes (<10).
 
-## TLDR get started
+## (semi-)TLDR get started
 
-1. change data paths in `config/data` or create new data yaml file in that folder
+1. change data paths in `config/data` or create new data yaml file in that folder. Make sure to specify:
+	- `celltype_colname`: the column that gives the celltype of the cells in the dataset (if you are templating from the `train_aibs_mouse.py` file, which we recommend, we will use `sklearn.preprocessing.LabelEncoder` on this column in the base `train_aibs_mouse.py` file, so it doesn't matter if it's integer or string encoded. If you are not using that function, make sure the dataframe you pass to `CenterMaskSampler` has column `cell_type` which is integer encoded.)
+		- NOTE: we are basically assuming you want to train on one mouse, so if there are multiple and there is a chance that one mouse out of multiple has some cell types that are not shared, you need to separately fit the LabelEncoder and then provide integer-encoded class labels (see `train_zhuang.py` for an example.)
+	- `cell_id_colname`: the column that gives an ID that we can use to lookup into the h5ad file. Make sure this is of the same datatype as the row ID's in the `anndata` object. 
 2. specify model architecture (depth, width etc.) configs in `config/model` yaml file
 3. implement the `load_data` method for `BaseTrainer` in `scripts/training/lightning_model.py` (see `train_zhuang.py` and `train_aibs_mouse.py` for reference)
-  * in essence this is normalization: mapping spatial x and y coordinates in your data to "x" and "y" and scaling them, also normalizing cell type column names
-4. add `wandb` key if desired to top level config in `config`
+	- in essence this is normalization: mapping spatial x and y coordinates in your data to "x" and "y" and scaling them, also normalizing cell type column names
+		- specifically you can look at `load_data` in `train_aibs_mouse` to see an example, but the dataloader code assumes that the spatial columns are `x` and `y`. 
+		- we also don't automatically rescale the units of the `x` and `y` columns relative to the `patch_size` arguments. The idea is for the user to correctly scaled versions and to use code in `scripts/training/lightning_model.py:BaseTrainer.load_data` to set up the data loader with the logic you need for your data, and then pass a version of that to `brainformr.data.CenterMaskSampler`
+	- for more information on the data and dataloader, see the [data + dataloader page](data.md)
+  * alternatively just change the `data.patch_size` config value in `hydra` (see `scripts/config/data/`); as long as the desired patch size and spatial units in the dataframe are correctly scaled, then it will work
+4. add `wandb` project if desired to top level config in `config`
 5. copy boilerplate for initiating training from `train_aibs_mouse.py` or `train_zhuang.py` (ie code in `main` that); make sure to specify correct config file in the `@hydra.main` decorator
+	- for more information on this see the [`hydra` docs](https://hydra.cc/docs/intro/).
 
 ## Core code components and usage
 
 ### Config management with hydra
-The main interface to the training code we wrote is through `hydra` (https://hydra.cc/), which is a configuration framework that uses yaml files to orchestrate and organize complex workflows. Please see the hydra documentation for more information.
+The main interface to the training code we wrote is through `hydra` (https://hydra.cc/), which is a configuration framework that uses yaml files to orchestrate and organize complex workflows. Please see the [`hydra`](https://hydra.cc/docs/intro/) documentation for more information.
 
 The pipeline controls the basic training operations through these yaml files and Pytorch Lightning.
 
@@ -45,11 +53,11 @@ bias: True
 zero_attn: True
 ```
 
-& we can use hydra to directly instantiate this model by specifiying the object class, here `brainformr.model.CellTransformer`. What this looks like in context is in following snippet:
+& we can use hydra to directly instantiate this model (which we specify using the `_target_` attribute) by specifiying the object class, here `brainformr.model.CellTransformer`. What this looks like in context is in following snippet:
 
 ```
 cfg_path = 'config.yaml'
-cfg = OmegaConf.load(cfg_path)
+cfg = OmegaConf.load(cfg_path) # same as above snippet
 model = hydra.utils.instantiate(cfg.model)
 
 # model will have 500 gene output decoder depth of 4, etc. and will be an instance of class `CellTransformer`
