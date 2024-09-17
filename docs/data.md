@@ -1,7 +1,7 @@
 ## Dataloader information
 We use a packed sequence format, so the returns from this function are not in general `(batch_size, length, features)` tensor but a `(length, features)` matrix. 
 
-These are the arguments for the loader we implement:
+Here is the docstring for the loader:
 
 ::: brainformr.data.CenterMaskSampler.__init__
 	handler: python
@@ -15,17 +15,17 @@ The required data components are an `anndata` object with keys corresponding to 
 
 The dataframe **must** have:
 
-* x: spatial coordinates
-* y: spatial coordinates
-* one column (`cell_id_colname`) which refers to the keys, these will be used directly to subset into the `anndata` object
-* one column (`cell_type_colname`) which is a class encoded integer corresponding to the single cell classes from the non-spatial scRNA-seq data clustering 
+* x: spatial coordinates **[default: x]**
+* y: spatial coordinates **[default: y]**
+* one column (`cell_id_colname`) which refers to the keys, these will be used directly to subset into the `anndata` object **[default: cell_label]**
+* one column (`cell_type_colname`) which is a class encoded integer corresponding to the single cell classes from the non-spatial scRNA-seq data clustering **[default: cell_type]**
 
 The units of `patch_size` are not scaled internally, so they must "match" the units of `x` and `y`. 
 
 What if you don't have a dataframe with those columns (and therefore is incorrectly formatted for `brainformr.data.CenterMaskSampler`)? Your options are:
 
 1. just create a new version of the dataframe with the correct column names and metadata 
-2. use the `scripts/training/lightning_model.py:BaseTrainer.load_data` function to preprocess your data in the format that will satisfy the conditions (see `scripts/training/train_aibs_mouse.py:load_data`) as an example. The motivations for this are covered briefly in the TLDR in the main page, but we will also discuss it here. 
+2. use the `scripts/training/lightning_model.py:BaseTrainer.load_data` function to preprocess your data in the format that will satisfy the conditions (see `scripts/training/train_aibs_mouse.py:load_data`) as an example. The motivations for this are covered in the TLDR in the main page, but we will also discuss it here. 
 
 ### Expectations for inputs into `brainformr.data.CenterMaskSampler`, using `scripts/training/train_aibs_mouse.py:load_data` as an example
 

@@ -337,10 +337,10 @@ class CenterMaskSampler(torch.utils.data.Dataset):
             metadata_row[self.tissue_section_colname], None
         )
 
-        if tissue_section is None:
-            raise RuntimeError(
-                "Tissue section not found in `tissue_section_mapper` dict."
-            )
+        assert tissue_section is not None, (
+            "Tissue section not found in `tissue_section_mapper` dict. "
+            "Check that the tissue_section_colname is correctly set in the metadata."
+        )
 
         all_neighborhood_cells = self.get_nearby_cells(
             centroid, self.patch_size, tissue_section, discretize=True

@@ -41,6 +41,10 @@ class BaseTrainer(L.LightningModule, ABC):
 
             self.load_checkpoint(checkpoint, lightning=True)
 
+    @abstractmethod
+    def load_data(self):
+        pass
+
     def label_to_cls(self, labels_str: pd.Series):
         le = LabelEncoder()
         le.fit(sorted(labels_str.unique()))

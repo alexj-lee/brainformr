@@ -2,7 +2,7 @@ In order to train on the Zhuang lab data please see the config files labeled "Zh
 
 The setup is more or less the same as for the AIBS case. One easy solution is to simply load each metadata / `anndata` object indepently as a `brainformr.data.SimpleMaskSampler` object and concatenate them together post-hoc using `torch.utils.data.ConcatDataset`. This is what we do.
 
-For reference, here is a snippet of code from the `ZhuangTrainer.load_data` function (see `scripts/training/train_zhuang.py`):
+For reference, here is a snippet of code from the `ZhuangTrainer.load_data` function (see `scripts/training/train_zhuang.py`) and some annotation by me:
 
 ```
 def load_data(self, config: DictConfig):
@@ -10,7 +10,11 @@ def load_data(self, config: DictConfig):
 	all_dfs = []
 	all_cls = set()
 
-	for df_path in config.data.metadata_path:
+	for df_path in config.data.metadata_path: 
+
+		# We loop over all the dataframes first, so we can generate a consistent list 
+		of all the celltypes in the datasets.
+
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore", pd.errors.DtypeWarning)
 			metadata = pd.read_csv(df_path)
@@ -25,6 +29,11 @@ def load_data(self, config: DictConfig):
 
 	le = LabelEncoder()
 	le.fit(sorted(all_cls))
+
+
+	# Now that we have this (`le` consistent encoder) we can use this as we loop again 
+	over the metadata/anndata pairs, creating for each one a `CenterMaskSampler` pair 
+	and appending to the `trn_samplers` and `valid_samplers` lists.
 
 	trn_samplers = []
 	valid_samplers = []
@@ -74,10 +83,9 @@ def load_data(self, config: DictConfig):
 		batch_size=config.data.batch_size,
 		num_workers=config.data.num_workers,
 		pin_memory=False,
-		shuffle=True,
+		shuffle=True, 
 		collate_fn=collate,
-		prefetch_factor=4,  
+		prefetch_factor=4, # muddling with this a bit can improve performance, depends on your setup
+
 	)
 ```
-
-Otherwise, the overall process is the same. We load each metadata CSV file in the first portion of the code in order to collect its observed neuron types for conversion from string encoded labels to integer ones. If this is done on a per-metadata/dataframe basis, there will be inconsistency in the coding because the different mice don't all have all of the total cell types, in some cases.

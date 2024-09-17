@@ -4,17 +4,31 @@ This is documentation for code written as part of the manuscript ["Data-driven f
 
 ## Installation
 
-* `pip install git+github.com:alexj-lee/brainformr.git` or clone and pip install; alternatively use the Dockerfile -- `PyTorch` and some other heavy libraries are required, which could take a couple minutes (<10).
+* `pip install git+github.com:alexj-lee/brainformr.git` or clone and pip install; alternatively use the Dockerfile -- `PyTorch` and some other heavy libraries are required, which could take a couple minutes (<10). It's also a somewhat unoptimized Docker image (no multi-stage build etc.) so caveat emptor.
 
 ## (semi-)TLDR get started
 
-1. change data paths in `config/data` or create new data yaml file in that folder. Make sure to specify:
-	- `celltype_colname`: the column that gives the celltype of the cells in the dataset (if you are templating from the `train_aibs_mouse.py` file, which we recommend, we will use `sklearn.preprocessing.LabelEncoder` on this column in the base `train_aibs_mouse.py` file, so it doesn't matter if it's integer or string encoded. If you are not using that function, make sure the dataframe you pass to `CenterMaskSampler` has column `cell_type` which is integer encoded.)
+### I want to edit the anndata (MERFISH probe counts) and CSV (cell metadata) to work with this codebase
+
+1. Provide in your CSV (case sensitive):
+
+	| column name | description |
+	|----------|----------|
+	| `cell_type`   | integer encoded class label for the cell type of a given cell   |
+	| `cell_label`     | value that will be used to index the `anndata` object. Make sure it is of appropriate datatype because we do not perform any transformation on it (such as conversion to str or int) prior to indexing the `anndata` object. |
+	| `brain_section_label`   | value that we will `.groupby()` on to select individual tissue sections to get the cells |
+	| `x` | spatial coordinate that will be used to identify neighbors. Must be in same units as `patch_size` argument (default in `hydra` configs is micron). | 
+	| `y` | similar as `x` | 
+
+### I want to edit this at the hydra config level or in the starter script
+
+1. Hydra config file setup: change data paths in `config/data` or create new data yaml file in that folder that has the same fields as the examples in that directory. Make sure to specify:
+	- `celltype_colname`: the column that gives the cell type of the cells in the dataset (if you are templating from the `train_aibs_mouse.py` file, which we recommend, we will use `sklearn.preprocessing.LabelEncoder` on this column in the base `train_aibs_mouse.py` file, so it doesn't matter if it's integer or string encoded. If you are not using that function, make sure the dataframe you pass to `CenterMaskSampler` has column `cell_type` (case sensitive default argument) which *must* integer encoded.)
 		- NOTE: we are basically assuming you want to train on one mouse, so if there are multiple and there is a chance that one mouse out of multiple has some cell types that are not shared, you need to separately fit the LabelEncoder and then provide integer-encoded class labels (see `train_zhuang.py` for an example.)
-	- `cell_id_colname`: the column that gives an ID that we can use to lookup into the h5ad file. Make sure this is of the same datatype as the row ID's in the `anndata` object. 
+	- `cell_id_colname`: the column that gives an ID that we can use to lookup into the h5ad file for single cells' probe count profiles. Make sure this is of the same datatype as the row ID's in the `anndata` object (i.e. make sure that the ID isn't 12345: uint | int instead of 12345: str). 
 2. specify model architecture (depth, width etc.) configs in `config/model` yaml file
 3. implement the `load_data` method for `BaseTrainer` in `scripts/training/lightning_model.py` (see `train_zhuang.py` and `train_aibs_mouse.py` for reference)
-	- in essence this is normalization: mapping spatial x and y coordinates in your data to "x" and "y" and scaling them, also normalizing cell type column names
+	- in essence this is normalization: mapping spatial x and y coordinates in your data to "x" and "y" and scaling them, also normalizing cell type column names as described in (1), optionally. One example might be to filter control probes. 
 		- specifically you can look at `load_data` in `train_aibs_mouse` to see an example, but the dataloader code assumes that the spatial columns are `x` and `y`. 
 		- we also don't automatically rescale the units of the `x` and `y` columns relative to the `patch_size` arguments. The idea is for the user to correctly scaled versions and to use code in `scripts/training/lightning_model.py:BaseTrainer.load_data` to set up the data loader with the logic you need for your data, and then pass a version of that to `brainformr.data.CenterMaskSampler`
 	- for more information on the data and dataloader, see the [data + dataloader page](data.md)
@@ -53,14 +67,14 @@ bias: True
 zero_attn: True
 ```
 
-& we can use hydra to directly instantiate this model (which we specify using the `_target_` attribute) by specifiying the object class, here `brainformr.model.CellTransformer`. What this looks like in context is in following snippet:
+We can use hydra to directly instantiate this model (which we specify using the `_target_` attribute) by specifiying the object class, here `brainformr.model.CellTransformer`. What this looks like in context is in following snippet:
 
 ```
 cfg_path = 'config.yaml'
 cfg = OmegaConf.load(cfg_path) # same as above snippet
 model = hydra.utils.instantiate(cfg.model)
 
-# model will have 500 gene output decoder depth of 4, etc. and will be an instance of class `CellTransformer`
+# model will have 500 gene output decoder depth of 4, etc. and will be an instance of class `brainformr.model.CellTransformer`
 ```
 
 ### Composition of config files is controlled at top-level using another config

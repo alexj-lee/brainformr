@@ -1,7 +1,7 @@
 site_name: "brainformr documentation"
 nav:
   - 'index.md'
-  - Code discussions and background: 
+  - Code reference information: 
     - data + dataloader: data.md
     - model attention matrix format: model.md
     - post-hoc analysis: analysis.md
