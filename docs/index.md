@@ -6,7 +6,9 @@ This is documentation for code written as part of the manuscript ["Data-driven f
 
 * `pip install git+github.com:alexj-lee/brainformr.git` or clone and pip install; alternatively use the Dockerfile -- `PyTorch` and some other heavy libraries are required, which could take a couple minutes (<10). It's also a somewhat unoptimized Docker image (no multi-stage build etc.) so caveat emptor.
 
-## (semi-)TLDR get started
+## Getting started with training on different datasets
+
+Requirements are a CSV file with cell types and cell IDs corresponding to an `anndata` object with probe counts. To set these up for use with the code in this repo:
 
 ### I want to edit the anndata (MERFISH probe counts) and CSV (cell metadata) to work with this codebase
 
@@ -19,6 +21,12 @@ This is documentation for code written as part of the manuscript ["Data-driven f
 	| `brain_section_label`   | value that we will `.groupby()` on to select individual tissue sections to get the cells |
 	| `x` | spatial coordinate that will be used to identify neighbors. Must be in same units as `patch_size` argument (default in `hydra` configs is micron). | 
 	| `y` | similar as `x` | 
+2. Change paths in the `hydra` config file template (`scripts/config/data/mouse1.yaml`)
+3. Make sure value of `patch_size` fits your `x` and `y` created in step (1) in the same YAML file.
+4. Adjust model parameters in `scripts/config/model/` for desired model. 
+5. Set `config_path` in `hydra.main` decorator to the path and config file of interest (see template file `scripts/training/train_base.py`).
+6. Set up `wandb` parameters in `scripts/training/train_base.py`.
+7. Run with `python train_base.py`
 
 ### I want to edit this at the hydra config level or in the starter script
 
@@ -139,3 +147,6 @@ If this is useful to you, please consider citing our preprint:
 	journal = {bioRxiv}
 }
 ```
+
+## Acknowledgments
+This documentation was copied from Patrick Kidger's `jaxtyping` [docs](https://github.com/patrick-kidger/jaxtyping).

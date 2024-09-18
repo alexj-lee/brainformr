@@ -28,3 +28,20 @@ This repo contains several items necessary to reproduce the paper
 * all data used in this repository was publicly available from the Allen Brain Cell dataset
 * the model weights and the embeddings for the Allen Institute for Brain Science data are available here: https://ucsf.box.com/s/n2h38wlpgqveqnywrpvvjrkdt4o2nd0h
 	* we are currently in the process of hosting these on a more permanent solution (S3 or Zenodo), but provide these as initial outputs of our work for review
+
+# Citation
+
+If this is useful to you, please consider citing: 
+
+```
+@article {Lee2024.05.05.592608,
+	author = {Lee, Alex J. and Yao, Shenqin and Lusk, Nicholas and Ng, Lydia and Kunst, Michael and Zeng, Hongkui and Tasic, Bosiljka and Abbasi-Asl, Reza},
+	title = {Data-driven fine-grained region discovery in the mouse brain with transformers},
+	elocation-id = {2024.05.05.592608},
+	year = {2024},
+	doi = {10.1101/2024.05.05.592608},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2024/06/13/2024.05.05.592608},
+	journal = {bioRxiv}
+}
+```

@@ -186,6 +186,7 @@ def setup_training(config: DictConfig):
         strategy=L.pytorch.strategies.FSDPStrategy(
             auto_wrap_policy={nn.TransformerEncoderLayer}
         ),
+        activation_checkpointing_policy={nn.TransformerEncoderLayer},
         logger=logger,
         deterministic=True,
     )
