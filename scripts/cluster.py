@@ -50,8 +50,10 @@ def main():
         raise ValueError("Output filename must be specified.")
     
     output_fname = pathlib.Path(args.output_fname)
+
     if output_fname.exists():
         logging.warning(f"Output file {args.output_fname} already exists. Overwriting.")
+
     if output_fname.parent.exists() is False:
         logging.info(f"Creating output directory {output_fname.parent}.")
         output_fname.parent.mkdir(parents=True, exist_ok=True)
@@ -66,10 +68,10 @@ def main():
     logging.info(f"Clustering into {args.n_clust} clusters.")
     
     kmeans = cuml.KMeans(n_clusters=args.n_clust, 
-                         max_iter=1500, 
-                         n_init=3, 
-                         oversampling_factor=3,
-                         tol=1e-10,
+                         max_iter=args.maxiter, 
+                         n_init=args.n_init, 
+                         oversampling_factor=args.oversampling_factor,
+                         tol=args.tol,
                          random_state=args.seed)
     kmeans.fit(embeds)
     logging.info("Finished clustering.")

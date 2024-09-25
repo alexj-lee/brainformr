@@ -144,7 +144,7 @@ def setup_training(config: DictConfig):
     lightning_model = AIBSTrainer(config)
     trn_loader, valid_loader = lightning_model.load_data(config)
 
-    if config.model_checkpoint not in (None, ''):
+    if config.model_checkpoint not in (None, '', 'None'):
        lightning_model.load_checkpoint(config.model_checkpoint, lightning=True)
        
     lightning_model.compile_specific()
@@ -184,7 +184,7 @@ def setup_training(config: DictConfig):
         devices=[0, 1],
         callbacks=[lr_monitor, chkpoint],
         strategy=L.pytorch.strategies.FSDPStrategy(
-            auto_wrap_policy={nn.TransformerEncoderLayer}
+            #auto_wrap_policy={nn.TransformerEncoderLayer}
         ),
         logger=logger,
         deterministic=True,

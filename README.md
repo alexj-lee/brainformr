@@ -16,7 +16,7 @@ This repo contains several items necessary to reproduce the paper
 3. scripts and ipynb files to perform basic analyses 
 	- scripts are a minimal `argparse` interface over code to get embeddings from a trained model and dataset and to cluster them using the `cuml` we used in the paper
 	- ipynb files principally describing the workflows after the model is generated 
-		- again, clustering the data after embeddings and visualization (because the number of clusters is large, it is slightly nontrivial to visualize them), ex:
+		- again, clustering the data after embeddings and visualization (because the number of clusters can be large, sometimes it is slightly nontrivial to visualize them), ex:
 		![](docs/_static/slice-31.png)
 		![](docs/_static/slice_30.png)
 

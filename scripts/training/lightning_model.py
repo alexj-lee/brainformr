@@ -32,7 +32,8 @@ class BaseTrainer(L.LightningModule, ABC):
         model = instantiate(config.model)
         self.model = model
         self.global_config = config
-        if (checkpoint is not None) and (checkpoint != ""):
+        #if (checkpoint is not None) and (checkpoint != ""):
+        if checkpoint not in (None, ""):
             # checkpoint = torch.load(checkpoint)
             # state_dict = {}
             # for key in checkpoint['model_state_dict']:

@@ -63,6 +63,8 @@ def main():
         ]
     ]
 
+    metadata = metadata.sort_values(by='brain_section_label')
+
     metadata["cell_type"] = LabelEncoder().fit_transform(metadata['cell_type'])
     metadata["cell_type"] = metadata["cell_type"].astype(int)
 
