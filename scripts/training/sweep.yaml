@@ -1,0 +1,6 @@
+program: train_687997.py
+method: bayes
+metric:
+  goal: maximize
+  name: metric
+
