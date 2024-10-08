@@ -1,9 +1,11 @@
 import pathlib
 import warnings
+import logging
 
 import anndata as ad
 import hydra
 import lightning as L
+import numpy as np
 import pandas as pd
 import torch
 import wandb
@@ -18,63 +20,40 @@ from brainformr.data import CenterMaskSampler, collate
 # from brainformr import __version__ as brainformr_version
 brainformr_version = "1.0"
 
-
 def load_data(self, config: DictConfig, inference: bool = False):
-    adata = ad.read_h5ad(config.data.adata_path)
-    # filter control probes
-    adata[:, ~adata.var.index.str.contains("Blank")] 
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", pd.errors.DtypeWarning)
-        metadata = pd.read_csv(config.data.metadata_path)
+    data_root = pathlib.Path(config.data.adata_path)
 
-    metadata["cell_label"] = metadata["cell_label"].astype(str)
-    metadata["x"] = metadata["spatial_x"] / 10.
-    metadata["y"] = metadata["spatial_y"] / 10.
+    h5_dir = data_root / "h5ad_norm"
+    metadata_dir = data_root / "mapping"
+    trn_samplers = []
+    valid_samplers = []
+    glob = h5_dir.glob("Puck_Num_*.h5ad")
+    glob = sorted(glob, key=lambda el: int(el.name.replace('.h5ad', '').split('_')[-1]))
 
-    metadata = metadata[
-        [
-            config.data.celltype_colname,
-            "cell_label",
-            "x",
-            "y",
-            "brain_section_label",
-        ]
-    ]
+    for h5_path in glob:#h5_dir.glob("Puck_Num_*.h5ad"):
+        adata = ad.read_h5ad(h5_path)
 
-    metadata["cell_type"] = self.label_to_cls(
-        metadata[config.data.celltype_colname]
-    )
-    metadata["cell_type"] = metadata["cell_type"].astype(int)
+        puck_num = h5_path.stem
 
-    metadata = metadata.reset_index(drop=True)
+        metadata_path = metadata_dir / f"{puck_num}.mapping_metadata.csv"
+        metadata = pd.read_csv(metadata_path)
 
-    # filter for MERFISH cells that were clf'd
-    adata = adata[metadata["cell_label"]]
+        adata = adata[metadata['cell_label']]
+        # log xfm nonzero
+        adata.X.data[adata.X.data > 0] = np.log(adata.X.data)
 
-    if inference:
-        sampler = CenterMaskSampler(
-            metadata=metadata,
-            adata=adata,
-            patch_size=config.data.patch_size,
-            cell_id_colname=config.data.cell_id_colname,
-            cell_type_colname="cell_type",
-            tissue_section_colname=config.data.tissue_section_colname,
-            max_num_cells=config.data.neighborhood_max_num_cells,
-        )
+        metadata.rename(columns={'Raw_Slideseq_X': 'x',
+                                 'Raw_Slideseq_Y': 'y',
+                                 'PuckID': 'brain_section_label',
+                                 }, inplace=True)
+        
+        metadata['cell_type'] = metadata['cell_index'].astype(int)
+        metadata = metadata.reset_index(drop=True)
 
-        loader = torch.utils.data.DataLoader(
-            sampler,
-            batch_size=config.data.batch_size,
-            shuffle=True,
-            num_workers=config.data.num_workers,
-            pin_memory=True,
-            collate_fn=collate,
-            prefetch_factor=4,
-        )
+        metadata = metadata[["cell_type", 'cell_label', 'x', 'y', 'brain_section_label']]
 
-        return loader
-    else:
+
         train_indices, valid_indices = train_test_split(
             range(len(adata)), train_size=config.data.train_pct
         )
@@ -100,34 +79,39 @@ def load_data(self, config: DictConfig, inference: bool = False):
             max_num_cells=config.data.neighborhood_max_num_cells,
             indices=valid_indices,
         )
+        logging.info(f"Loaded {puck_num} with {len(train_indices)} training cells and {len(valid_indices)} validation cells. Number of genes is {adata.shape[1]}")
 
-        train_loader = torch.utils.data.DataLoader(
-            train_sampler,
-            batch_size=config.data.batch_size,
-            shuffle=True,
-            num_workers=config.data.num_workers,
-            pin_memory=True,
-            collate_fn=collate,
-            prefetch_factor=4,
-        )
+        trn_samplers.append(train_sampler)
+        valid_samplers.append(valid_sampler)
 
-        valid_loader = torch.utils.data.DataLoader(
-            valid_sampler,
-            batch_size=config.data.batch_size,
-            shuffle=False,
-            num_workers=config.data.num_workers,
-            pin_memory=True,
-            collate_fn=collate,
-            prefetch_factor=4,
-        )
+    train_loader = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset(trn_samplers),
+        batch_size=config.data.batch_size,
+        shuffle=True,
+        num_workers=config.data.num_workers,
+        pin_memory=False,
+        collate_fn=collate,
+        prefetch_factor=4,
+    )
 
-        return train_loader, valid_loader
+    valid_loader = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset(valid_samplers),
+        batch_size=config.data.batch_size,
+        shuffle=True,
+        num_workers=config.data.num_workers,
+        pin_memory=False,
+        collate_fn=collate,
+        prefetch_factor=4,
+    )
+
+    return train_loader, valid_loader
+    
       
 AIBSTrainer.load_data = load_data
 
 @hydra.main(
     config_path="/home/ajl/work/d2/code/brainformr/scripts/config",
-    config_name="mouse_687997.yaml",
+    config_name="langlieb.yaml",
 )
 def main(config: DictConfig):
     print(OmegaConf.to_yaml(config))
@@ -146,6 +130,8 @@ def setup_training(config: DictConfig):
 
     if config.model_checkpoint not in (None, '', 'None'):
        lightning_model.load_checkpoint(config.model_checkpoint, lightning=True)
+
+    print(lightning_model)
        
     lightning_model.compile_specific()
 
@@ -184,7 +170,7 @@ def setup_training(config: DictConfig):
         devices=[0, 1],
         callbacks=[lr_monitor, chkpoint],
         strategy=L.pytorch.strategies.FSDPStrategy(
-            #auto_wrap_policy={nn.TransformerEncoderLayer}
+        #   auto_wrap_policy={nn.TransformerEncoderLayer}
         ),
         logger=logger,
         deterministic=True,

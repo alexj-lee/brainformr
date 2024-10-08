@@ -5,7 +5,7 @@ schedule_warmup: 500
 schedule_timescale: 5000
 schedule_plateau: 50
 
-accumulation_steps: 8
+accumulation_steps: 16
 
 epochs: 40
 

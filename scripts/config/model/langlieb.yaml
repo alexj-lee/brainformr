@@ -9,7 +9,7 @@ attn_pool_heads: 8
 encoder_depth: 4
 decoder_depth: 4
 
-cell_cardinality: 384
+cell_cardinality: 2048
 eps: 1e-9
 
 n_genes: 35936

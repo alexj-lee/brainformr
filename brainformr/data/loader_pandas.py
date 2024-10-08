@@ -349,6 +349,10 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         if len(all_neighborhood_cells) == 1:
             # manually create an empty neighborhood
             masked_expression: Float[np.array, "one n_genes"] = self.idx_to_expr(index)  # noqa: F722
+            # check if is csr, if so convert
+            if not isinstance(masked_expression, np.ndarray):
+                masked_expression = masked_expression.toarray()
+                
             masked_cell_type: int = metadata_row[self.cell_type_colname]
 
             neighborhood_metadata = NeighborhoodMetadata(
@@ -395,6 +399,10 @@ class CenterMaskSampler(torch.utils.data.Dataset):
         neighborhood_cells = neighborhood_cells.reset_index(drop=True)
         neighborhood_cells_indices = neighborhood_cells[self.cell_id_colname]
         expression = self.adata[neighborhood_cells_indices].X
+        
+        # check if is csr, if so convert
+        if not isinstance(expression, np.ndarray):
+            expression = expression.toarray()
 
         num_cells_neighborhood = len(neighborhood_cells)
 

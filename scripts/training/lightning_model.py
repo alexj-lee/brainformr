@@ -60,7 +60,8 @@ class BaseTrainer(L.LightningModule, ABC):
         expression: Float[torch.Tensor, "n_cells n_genes"],  # noqa: F722
         return_expression: Optional[bool] = False,
     ):
-        h_expr_counts = torch.pow(expression, 2)
+        #h_expr_counts = torch.pow(expression, 2)
+        h_expr_counts = torch.exp(expression)
         loss = -zinb_obj.log_prob(h_expr_counts)
 
         if return_expression:
@@ -107,6 +108,7 @@ class BaseTrainer(L.LightningModule, ABC):
         print('Finished loading state dict.')
 
     def training_step(self, data_dict: dict):
+        
         fwd = self.forward(data_dict)
         zinb_params: Dict[str, Float[torch.Tensor, "n_cells n_genes"]] = fwd[  # noqa: F722
             "zinb_params"
