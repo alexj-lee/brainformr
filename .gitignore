@@ -91,3 +91,4 @@ cluster_and_visualize.pdf
 
 *.pth
 scripts/aibs-embeds.pth
+something.ipynb

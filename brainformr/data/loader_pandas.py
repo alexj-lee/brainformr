@@ -352,7 +352,6 @@ class CenterMaskSampler(torch.utils.data.Dataset):
             # check if is csr, if so convert
             if not isinstance(masked_expression, np.ndarray):
                 masked_expression = masked_expression.toarray()
-                
             masked_cell_type: int = metadata_row[self.cell_type_colname]
 
             neighborhood_metadata = NeighborhoodMetadata(

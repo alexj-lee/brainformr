@@ -61,7 +61,8 @@ class BaseTrainer(L.LightningModule, ABC):
         return_expression: Optional[bool] = False,
     ):
         #h_expr_counts = torch.pow(expression, 2)
-        h_expr_counts = torch.exp(expression)
+        h_expr_counts = torch.exp(expression) - 1 # assume log1p
+
         loss = -zinb_obj.log_prob(h_expr_counts)
 
         if return_expression:
@@ -112,11 +113,11 @@ class BaseTrainer(L.LightningModule, ABC):
         fwd = self.forward(data_dict)
         zinb_params: Dict[str, Float[torch.Tensor, "n_cells n_genes"]] = fwd[  # noqa: F722
             "zinb_params"
-        ]
-        # zinb_params = dict(mu=fwd['mu'] + 1e-9, theta=fwd['theta'] + 1e-9, zi_logits=fwd['gate'], scale=fwd['scale'] + 1e-9)
+        ] # keys are mu,  theta, zi_logits, scale
+        # each one should be an n_cells by n_genes matrix
 
         zinb = ZeroInflatedNegativeBinomial(**zinb_params)
-        loss = self._zinb_loss(zinb, fwd["hidden_expression"]).mean()
+        loss = self._zinb_loss(zinb, fwd["hidden_expression"]).mean() # in fn we will .exp() - 1
 
         self.log(
             "train/nll",

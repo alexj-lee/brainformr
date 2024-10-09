@@ -1,5 +1,4 @@
 import pathlib
-import warnings
 import logging
 
 import anndata as ad
@@ -12,7 +11,6 @@ import wandb
 from lightning_model import get_timestamp
 from omegaconf import DictConfig, OmegaConf
 from sklearn.model_selection import train_test_split
-from torch import nn
 from train_aibs_mouse import AIBSTrainer
 
 from brainformr.data import CenterMaskSampler, collate
@@ -24,7 +22,7 @@ def load_data(self, config: DictConfig, inference: bool = False):
 
     data_root = pathlib.Path(config.data.adata_path)
 
-    h5_dir = data_root / "h5ad_norm"
+    h5_dir = data_root / "h5ad_normM_log1p"
     metadata_dir = data_root / "mapping"
     trn_samplers = []
     valid_samplers = []
@@ -39,9 +37,12 @@ def load_data(self, config: DictConfig, inference: bool = False):
         metadata_path = metadata_dir / f"{puck_num}.mapping_metadata.csv"
         metadata = pd.read_csv(metadata_path)
 
+
         adata = adata[metadata['cell_label']]
+        #adata.X = adata.X.log1p()
         # log xfm nonzero
-        adata.X.data[adata.X.data > 0] = np.log(adata.X.data)
+
+        assert np.isnan(adata.X.data).sum() == 0, f"Detected a nan while loading {h5_path}"
 
         metadata.rename(columns={'Raw_Slideseq_X': 'x',
                                  'Raw_Slideseq_Y': 'y',
