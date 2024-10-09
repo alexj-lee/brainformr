@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument('--output_path', type=str, help='Path to save embeddings.', required=True)
     parser.add_argument('--celltype_colname', type=str, help='The column name that contains the cell type assignments', required=False, default='')
     parser.add_argument('--preprocess_type', type=str, help='The type of preprocessing to apply to the metadata', required=False, default='aibs')
+    parser.add_argument('--bs', type=int, help='Batch size for inference.', required=False, default=32)
     return parser.parse_args()
 
 def preprocess_langlieb(adata, metadata):
@@ -98,8 +99,8 @@ def main():
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     adata = adata[metadata["cell_label"]]
-    patch_size = (17, 17)
-    bs = 32
+    patch_size = (25, 25)
+    bs = args.bs
 
     sampler = CenterMaskSampler(
         metadata=metadata,
@@ -155,7 +156,8 @@ def main():
             embeds.append(embed)
 
     embeds = torch.cat(embeds)
-    new_name = output_path/f'{pathlib.Path(args.adata_path).stem}_embeds_ps{patch_size[0]}.pth'
+    parent = pathlib.Path(args.checkpoint_path).parent.name
+    new_name = output_path/f'model{parent}_{pathlib.Path(args.adata_path).stem}_embeds_ps{patch_size[0]}.pth'
     torch.save(embeds, new_name)
 
 if __name__ == "__main__":

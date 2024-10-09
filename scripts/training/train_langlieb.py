@@ -37,7 +37,6 @@ def load_data(self, config: DictConfig, inference: bool = False):
         metadata_path = metadata_dir / f"{puck_num}.mapping_metadata.csv"
         metadata = pd.read_csv(metadata_path)
 
-
         adata = adata[metadata['cell_label']]
         #adata.X = adata.X.log1p()
         # log xfm nonzero
